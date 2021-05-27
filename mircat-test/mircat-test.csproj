@@ -83,16 +83,17 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="LaserInfo.cs" />
     <Compile Include="MIRcatSDK.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="QCLChip.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="App.config" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <PropertyGroup>
-    <PostBuildEvent>copy $(ProjectDir)..\MIRcatSDK_1.6.3\bin\$(PlatformName)\*.dll $(TargetDir)
-copy $(ProjectDir)..\MIRcatSDK_1.6.3\bin\$(PlatformName)\*.dll $(SolutionDir)$(OutDir)</PostBuildEvent>
+    <PostBuildEvent>copy $(ProjectDir)..\MIRcatSDK_1.6.3\bin\$(PlatformName)\*.dll $(TargetDir)</PostBuildEvent>
   </PropertyGroup>
 </Project>
