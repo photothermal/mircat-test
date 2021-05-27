@@ -235,6 +235,51 @@ namespace PSC.MIRcatTest
             }
         }
 
+        // We have seen a communication error when converting units
+        // using the MIRcatSDK_ConvertWW method.  We therefore do this 
+        // trivial conversion ourselves.
+        public static float ConvertWW(
+            float fWW,
+            Units currentUnits,
+            Units newUnits)
+        {
+            return currentUnits == newUnits ? fWW : Convert.ToSingle(1e4D / fWW);
+        }
+
+        /// <summary>
+        /// Create a default Advanced Sweep configuration that uses the whole laser's range.
+        /// </summary>
+        /// <returns>IEnumerable of QclRange objects defining the sweep.</returns>
+        public IEnumerable<QclRange> BuildSweep()
+        {
+            // sweep from lowest wavenumber to highest across all available chips
+
+            if (null == this.QclChips)
+            {
+                this.QueryLaserStages();
+            }
+
+            var ordered = this.QclChips.Values.OrderBy(item => Math.Min(item.minWn, item.maxWn)).ToArray();
+
+            double? transWn = null;
+
+            for (int i = 0; i < ordered.Length; i++)
+            {
+                var curQcl = ordered[i];
+
+                var nextQcl = (i < (ordered.Length - 1)) ? ordered[i + 1] : null;
+
+                var qclStart = (null == transWn) ? curQcl.MinWn : transWn ?? throw new Exception();
+
+                // look for next transition point (use midpoint)
+                var qclEnd = (null == nextQcl) ? curQcl.MaxWn : (curQcl.MaxWn + nextQcl.MinWn) / 2;
+
+                yield return new QclRange() { ChipNum = curQcl.ChipNum, minWn = qclStart, maxWn = qclEnd };
+
+                transWn = qclEnd;
+            }
+        }
+
         #endregion
 
         #region Private Methods
@@ -485,17 +530,6 @@ namespace PSC.MIRcatTest
             return bAtSetTemperature;
         }
 
-        // We have seen a communication error when converting units
-        // using the MIRcatSDK_ConvertWW method.  We therefore do this 
-        // trivial conversion ourselves.
-        private static float ConvertWW(
-            float fWW,
-            Units currentUnits,
-            Units newUnits)
-        {
-            return currentUnits == newUnits ? fWW : Convert.ToSingle(1e4D / fWW);
-        }
-
         private int GetQclNum(double invCm)
         {
             if (null == this.QclChips)
@@ -507,5 +541,11 @@ namespace PSC.MIRcatTest
         }
 
         #endregion
+    }
+
+    public static class LaserExtensions
+    {
+        public static float MinWn(this IEnumerable<QclRange> span) => Convert.ToSingle(span.Min(item => Math.Min(item.minWn, item.maxWn)));
+        public static float MaxWn(this IEnumerable<QclRange> span) => Convert.ToSingle(span.Max(item => Math.Max(item.minWn, item.maxWn)));
     }
 }

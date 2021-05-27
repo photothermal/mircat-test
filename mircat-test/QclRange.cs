@@ -6,13 +6,15 @@ using System.Threading.Tasks;
 
 namespace PSC.MIRcatTest
 {
-    class QclRange
+    public class QclRange
     {
         public int ChipNum;
         public double minWn;
         public double maxWn;
 
-        public bool Contains(double wavenumber) => (wavenumber >= minWn) && (wavenumber <= maxWn);
+        public bool Contains(double wavenumber) => (wavenumber >= MinWn) && (wavenumber <= MaxWn);
         public double CenterWn => Math.Round((minWn + maxWn) / 2, 1);
+        public double MinWn => Math.Min(minWn, maxWn);
+        public double MaxWn => Math.Max(minWn, maxWn);
     }
 }
