@@ -14,14 +14,72 @@ namespace PSC.MIRcatTest
 
         public Dictionary<int, QclRange> QclChips { get; private set; }
         public TimeSpan UpdateDelay { get; set; } = TimeSpan.FromSeconds(1);
+        public TimeSpan DefaultTimeout { get; set; } = TimeSpan.FromSeconds(40);
 
         #endregion
 
         #region Public Methods
 
+        public void StartLaser(double wavenumber, CancellationToken cxToken)
+        {
+            try
+            {
+                var fxnStartTime = DateTime.Now;
+                var timeoutRemaining = new Func<TimeSpan>(
+                    () =>
+                    {
+                        var elapsed = DateTime.Now.Subtract(fxnStartTime);
+                        if (elapsed >= DefaultTimeout)
+                        {
+                            return TimeSpan.Zero;
+                        }
+                        return this.DefaultTimeout - elapsed;
+                    });
+
+                this.EnsureArmed(wavenumber, false, cxToken);
+
+                this.WaitLaserIsTuned(timeoutRemaining(), cxToken);
+
+                if (!this.GetIsEmitting())
+                {
+                    Console.WriteLine("MIRcatSDK_TurnEmissionOn()");
+                    TryCmd(MIRcatSDK.MIRcatSDK_TurnEmissionOn());
+
+                    this.WaitLaserEmitting(timeoutRemaining(), cxToken);
+                    Thread.Sleep(TimeSpan.FromSeconds(0.5));    // wait for the TECs to go out of spec (if they're going to)
+                }
+
+                this.WaitTempNormalize(timeoutRemaining(), cxToken);
+            }
+            catch (Exception ex)
+            {
+                throw new Exception("Error starting laser.", ex);
+            }
+        }
+        public void StopLaser()
+        {
+            try
+            {
+                bool bEmission = false;
+                TryCmd(MIRcatSDK.MIRcatSDK_IsEmissionOn(ref bEmission));
+                Console.WriteLine(string.Format(
+                    "MIRcatSDK_IsEmissionOn( {0} )",
+                    bEmission));
+                if (bEmission)
+                {
+                    Console.WriteLine("MIRcatSDK_TurnEmissionOff()");
+                    TryCmd(MIRcatSDK.MIRcatSDK_TurnEmissionOff());
+                }
+            }
+            catch (Exception ex)
+            {
+                throw new Exception("Error stopping laser.", ex);
+            }
+        }
+
+
         public void EnsureArmed(double invCm, bool bFixErrors, CancellationToken cxToken)
         {
-            var defaultTimeout = TimeSpan.FromSeconds(40);
             var cxEvent = cxToken.WaitHandle;
 
             try
@@ -35,11 +93,11 @@ namespace PSC.MIRcatTest
                         () =>
                         {
                             var elapsed = DateTime.Now.Subtract(fxnStartTime);
-                            if (elapsed >= defaultTimeout)
+                            if (elapsed >= DefaultTimeout)
                             {
                                 return TimeSpan.Zero;
                             }
-                            return defaultTimeout - elapsed;
+                            return DefaultTimeout - elapsed;
                         });
 
                     bool bKeySwitchSet = false;                                                             // Check key switch state
@@ -135,15 +193,15 @@ namespace PSC.MIRcatTest
                                                                                                             // 
                     float fTuneWW_CM1 = ConvertWW(fTuneWW, units, Units.MIRcatSDK_UNITS_CM1);               // 
                                                                                                             // 
-                    if (this.GetIsTuned()                                                                   //
-                        && float.Equals((float)invCm, fTuneWW_CM1)                                          // 
-                        && byte.Equals((byte)Qcl_num, preferredQcl))                                        // 
-                    {                                                                                       // 
-                        Console.WriteLine(string.Format(                                                    // 
-                            "MIRcat already tuned to {0} cm-1. Skipping tune command.",                     // 
-                            invCm));                                                                        // 
-                    }                                                                                       // 
-                    else                                                                                    // 
+                    //if (this.GetIsTuned()                                                                   //
+                    //    && float.Equals((float)invCm, fTuneWW_CM1)                                          // 
+                    //    && byte.Equals((byte)Qcl_num, preferredQcl))                                        // 
+                    //{                                                                                       // 
+                    //    Console.WriteLine(string.Format(                                                    // 
+                    //        "MIRcat already tuned to {0} cm-1. Skipping tune command.",                     // 
+                    //        invCm));                                                                        // 
+                    //}                                                                                       // 
+                    //else                                                                                    // 
                     {
                         Console.WriteLine(string.Format(
                             "MIRcatSDK_TuneToWW( {0}, {1}, {2} )",

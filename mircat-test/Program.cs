@@ -42,8 +42,8 @@ namespace PSC.MIRcatTest
 
                 var initialWavenum = laser.QclChips.Values.First().CenterWn;
 
-                // arm laser
-                laser.EnsureArmed(initialWavenum, true, CancellationToken.None);
+                // start laser
+                laser.StartLaser(initialWavenum, CancellationToken.None);
 
                 bool bIsOn = false;
                 TryCmd(MIRcatSDK.MIRcatSDK_IsEmissionOn(ref bIsOn));
