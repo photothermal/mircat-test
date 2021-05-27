@@ -28,16 +28,14 @@ namespace PSC.MIRcatTest
                 ushort uMinor = 0;
                 ushort uPatch = 0;
                 TryCmd(MIRcatSDK.MIRcatSDK_GetAPIVersion(ref uMajor, ref uMinor, ref uPatch));
-                Console.WriteLine(string.Format("MIRcatSDK_GetAPIVersion( {0}, {1}, {2} )", uMajor, uMinor, uPatch));
+                Console.WriteLine("MIRcatSDK_GetAPIVersion( {0}, {1}, {2} )", uMajor, uMinor, uPatch);
 
                 Console.WriteLine("MIRcatSDK_Initialize");
                 TryCmd(MIRcatSDK.MIRcatSDK_Initialize());
 
                 bool bConnected = false;
                 TryCmd(MIRcatSDK.MIRcatSDK_IsConnectedToLaser(ref bConnected));
-                Console.WriteLine(string.Format(
-                    "MIRcatSDK_IsConnectedToLaser( {0} )",
-                    bConnected));
+                Console.WriteLine( "MIRcatSDK_IsConnectedToLaser( {0} )", bConnected);
 
                 var laser = new LaserSupport();
                 laser.QueryLaserStages();
@@ -47,7 +45,9 @@ namespace PSC.MIRcatTest
                 // arm laser
                 laser.EnsureArmed(initialWavenum, true, CancellationToken.None);
 
-                // TO DO:  set up sweep test.
+                bool bIsOn = false;
+                TryCmd(MIRcatSDK.MIRcatSDK_IsEmissionOn(ref bIsOn));
+                Console.WriteLine("MIRcatSDK_IsEmissionOn( {0} )", string.Join(", ", new object[] { bIsOn }));
 
                 // get the currently defined sweep rate
                 Units units = Units.MIRcatSDK_UNITS_CM1;
@@ -57,7 +57,7 @@ namespace PSC.MIRcatTest
                 ushort uRepeat = 0;
                 bool bidir = false;
                 TryCmd(MIRcatSDK.MIRcatSDK_GetAdvancedSweepParams(ref units, ref fStart, ref fStop, ref fSpeed, ref uRepeat, ref bidir));
-                Console.WriteLine(string.Format("MIRcatSDK_GetAdvancedSweepParams( {0} )", string.Join(", ", new object[] { units, fStart, fStop, fSpeed, uRepeat, bidir })));
+                Console.WriteLine("MIRcatSDK_GetAdvancedSweepParams( {0} )", string.Join(", ", new object[] { units, fStart, fStop, fSpeed, uRepeat, bidir }));
 
                 // make sure we are in cm-1/s
                 fSpeed = LaserSupport.ConvertWW(fSpeed, units, Units.MIRcatSDK_UNITS_CM1);
@@ -70,14 +70,14 @@ namespace PSC.MIRcatTest
                 var sweepParams = laser.BuildSweep().ToArray();
 
                 TryCmd(MIRcatSDK.MIRcatSDK_SetAdvancedSweepParams(Units.MIRcatSDK_UNITS_CM1, sweepParams.MinWn(), sweepParams.MaxWn(), targetRate, 1, false));
-                Console.WriteLine(string.Format("MIRcatSDK_SetAdvancedSweepParams( {0} )", string.Join(", ",
-                    new object[] { Units.MIRcatSDK_UNITS_CM1, sweepParams.MinWn(), sweepParams.MaxWn(), targetRate, 1, false })));
+                Console.WriteLine("MIRcatSDK_SetAdvancedSweepParams( {0} )", string.Join(", ",
+                    new object[] { Units.MIRcatSDK_UNITS_CM1, sweepParams.MinWn(), sweepParams.MaxWn(), targetRate, 1, false }));
 
                 foreach (var obj in sweepParams)
                 {
                     TryCmd(MIRcatSDK.MIRcatSDK_SetAdvancedSweepChanParams(Convert.ToByte(obj.ChipNum), Convert.ToSingle(obj.minWn), Convert.ToSingle(obj.maxWn), true));
-                    Console.WriteLine(string.Format("MIRcatSDK_SetAdvancedSweepChanParams( {0} )", string.Join(", ",
-                        new object[] { Convert.ToByte(obj.ChipNum), Convert.ToSingle(obj.minWn), Convert.ToSingle(obj.maxWn), true })));
+                    Console.WriteLine("MIRcatSDK_SetAdvancedSweepChanParams( {0} )", string.Join(", ",
+                        new object[] { Convert.ToByte(obj.ChipNum), Convert.ToSingle(obj.minWn), Convert.ToSingle(obj.maxWn), true }));
                 }
 
                 TryCmd(MIRcatSDK.MIRcatSDK_ReadWriteAdvancedSweepParams(true));
@@ -86,7 +86,7 @@ namespace PSC.MIRcatTest
 
                 // now read back the advanced sweep parameters from the laser
                 TryCmd(MIRcatSDK.MIRcatSDK_GetAdvancedSweepParams(ref units, ref fStart, ref fStop, ref fSpeed, ref uRepeat, ref bidir));
-                Console.WriteLine(string.Format("MIRcatSDK_GetAdvancedSweepParams( {0} )", string.Join(", ", new object[] { units, fStart, fStop, fSpeed, uRepeat, bidir })));
+                Console.WriteLine("MIRcatSDK_GetAdvancedSweepParams( {0} )", string.Join(", ", new object[] { units, fStart, fStop, fSpeed, uRepeat, bidir }));
 
                 if (string.Equals(fSpeed.ToString("0.#"), targetRate.ToString("0.#")))
                 {

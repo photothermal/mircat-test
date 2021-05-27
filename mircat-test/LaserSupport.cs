@@ -13,6 +13,7 @@ namespace PSC.MIRcatTest
         #region Public Properties
 
         public Dictionary<int, QclRange> QclChips { get; private set; }
+        public TimeSpan UpdateDelay { get; set; } = TimeSpan.FromSeconds(1);
 
         #endregion
 
@@ -20,7 +21,7 @@ namespace PSC.MIRcatTest
 
         public void EnsureArmed(double invCm, bool bFixErrors, CancellationToken cxToken)
         {
-            var defaultTimeout = TimeSpan.FromSeconds(20);
+            var defaultTimeout = TimeSpan.FromSeconds(40);
             var cxEvent = cxToken.WaitHandle;
 
             try
@@ -99,7 +100,7 @@ namespace PSC.MIRcatTest
                         }                                                                                   // 
                         while (!bArmed                                                                      //
                             && timeoutRemaining() > TimeSpan.Zero                                           // 
-                            && !(null != cxEvent && cxEvent.WaitOne(TimeSpan.FromMilliseconds(50))));       // 
+                            && !(null != cxEvent && cxEvent.WaitOne(UpdateDelay)));                         // 
                     }                                                                                       // 
 
                     if (null != cxEvent && cxEvent.WaitOne(0, false))
@@ -302,7 +303,7 @@ namespace PSC.MIRcatTest
 
                 while (!this.GetIsTuned()
                     && DateTime.Now.Subtract(startTime) < timeout
-                    && !cxEvent.WaitOne(TimeSpan.FromMilliseconds(50)))
+                    && !cxEvent.WaitOne(UpdateDelay))
                 {
                     this.TestForErrors();
                 }
@@ -330,7 +331,7 @@ namespace PSC.MIRcatTest
 
                 while (!this.GetIsEmitting()
                     && DateTime.Now.Subtract(startTime) < timeout
-                    && !cxEvent.WaitOne(50))
+                    && !cxEvent.WaitOne(UpdateDelay))
                 {
                     this.TestForErrors();
                 }
@@ -357,8 +358,8 @@ namespace PSC.MIRcatTest
                 DateTime startTime = DateTime.Now;
 
                 while (!this.AreTECsAtSetTemperature()
-                    && !cxEvent.WaitOne(50)
-                    && DateTime.Now.Subtract(startTime) < timeout)
+                    && DateTime.Now.Subtract(startTime) < timeout
+                    && !cxEvent.WaitOne(UpdateDelay))
                 {
                     this.TestForErrors();
                 }
