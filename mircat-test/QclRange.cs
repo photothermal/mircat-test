@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace PSC.MIRcatTest
 {
-    class QCLChip
+    class QclRange
     {
         public int ChipNum;
         public double minWn;

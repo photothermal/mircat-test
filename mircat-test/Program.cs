@@ -39,13 +39,13 @@ namespace PSC.MIRcatTest
                     "MIRcatSDK_IsConnectedToLaser( {0} )",
                     bConnected));
 
-                var laserInfo = new LaserInfo();
-                laserInfo.QueryLaserStages();
+                var laser = new LaserSupport();
+                laser.QueryLaserStages();
 
-                var initialWavenum = laserInfo.QclChips.Values.First().CenterWn;
+                var initialWavenum = laser.QclChips.Values.First().CenterWn;
 
                 // arm laser
-                laserInfo.EnsureArmed(initialWavenum, true, CancellationToken.None);
+                laser.EnsureArmed(initialWavenum, true, CancellationToken.None);
 
                 // TO DO:  set up sweep test.
 

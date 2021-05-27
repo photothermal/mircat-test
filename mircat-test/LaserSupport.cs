@@ -8,11 +8,11 @@ using MIRcat_Control;
 
 namespace PSC.MIRcatTest
 {
-    class LaserInfo
+    class LaserSupport
     {
         #region Public Properties
 
-        public Dictionary<int, QCLChip> QclChips { get; private set; }
+        public Dictionary<int, QclRange> QclChips { get; private set; }
 
         #endregion
 
@@ -220,7 +220,7 @@ namespace PSC.MIRcatTest
                         var minWn = Math.Min(limW1, limW2);
                         var maxWn = Math.Max(limW1, limW2);
 
-                        return new QCLChip() { ChipNum = iQcl, minWn = minWn, maxWn = maxWn };
+                        return new QclRange() { ChipNum = iQcl, minWn = minWn, maxWn = maxWn };
                     })
                     .ToDictionary(item => item.ChipNum, item => item);
 
