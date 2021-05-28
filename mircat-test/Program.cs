@@ -20,7 +20,7 @@ namespace PSC.MIRcatTest
 
                 if (!bCreated)
                 {
-                    Console.WriteLine("MIRcatSDK_CreateMIRcatObject");
+                    Console.WriteLine("MIRcatSDK_CreateMIRcatObject()");
                     TryCmd(MIRcatSDK.MIRcatSDK_CreateMIRcatObject());
                 }
 
@@ -30,7 +30,7 @@ namespace PSC.MIRcatTest
                 TryCmd(MIRcatSDK.MIRcatSDK_GetAPIVersion(ref uMajor, ref uMinor, ref uPatch));
                 Console.WriteLine("MIRcatSDK_GetAPIVersion( {0}, {1}, {2} )", uMajor, uMinor, uPatch);
 
-                Console.WriteLine("MIRcatSDK_Initialize");
+                Console.WriteLine("MIRcatSDK_Initialize()");
                 TryCmd(MIRcatSDK.MIRcatSDK_Initialize());
 
                 bool bConnected = false;
@@ -97,13 +97,93 @@ namespace PSC.MIRcatTest
                     Console.WriteLine("   ** FAILURE -- the laser did not accept the new sweep speed parameter. **");
                 }
 
-                // MIRcatSDK_StartSweepAdvancedScan()
-                // MIRcatSDK_IsSystemError(False )
+                bool bIsTuned = false;
+                TryCmd(MIRcatSDK.MIRcatSDK_IsTuned(ref bIsTuned));
+                Console.WriteLine("MIRcatSDK_IsTuned( {0} )", bIsTuned);
+
+                if (bIsTuned)
+                {
+                    TryCmd(MIRcatSDK.MIRcatSDK_CancelManualTuneMode());
+                    Console.WriteLine("MIRcatSDK_CancelManualTuneMode()");
+                }
+
+                Console.WriteLine("MIRcatSDK_StartSweepAdvancedScan()");
+                TryCmd(MIRcatSDK.MIRcatSDK_StartSweepAdvancedScan());
+
+
+                while (true)
+                {
+                    bool bSysError = false;
+                    TryCmd(MIRcatSDK.MIRcatSDK_IsSystemError(ref bSysError));
+                    Console.WriteLine("MIRcatSDK_IsSystemError( {0} )", bSysError);
+
+                    bool bScanInProgress = false;
+                    bool bScanIsActive = false;
+                    bool bScanIsPaused = false;
+                    ushort uCurScanNum = 0;
+                    ushort uCurScanPercent = 0;
+                    float fCurWavenumber = 0;
+                    bool bTecInProg = false;
+                    bool bMotionInProg = false;
+                    MIRcatSDK.MIRcatSDK_GetScanStatus(
+                        ref bScanInProgress,
+                        ref bScanIsActive,
+                        ref bScanIsPaused,
+                        ref uCurScanNum,
+                        ref uCurScanPercent,
+                        ref fCurWavenumber,
+                        ref units,
+                        ref bTecInProg,
+                        ref bMotionInProg);
+                    Console.WriteLine("MIRcatSDK_GetScanStatus( {0} )", string.Join(", ", new object[] {
+                            bScanInProgress,
+                            bScanIsActive,
+                            bScanIsPaused,
+                            uCurScanNum,
+                            uCurScanPercent,
+                            fCurWavenumber,
+                            units,
+                            bTecInProg,
+                            bMotionInProg
+                        }));
+
+                    if (!bScanInProgress)
+                    {
+                        Console.WriteLine("  ** scan has stopped **");
+                        break;
+                    }
+                    //if (!bScanIsActive)
+                    //{
+                    //    Console.WriteLine("  ** no scan is active **");
+                    //    break;
+                    //}
+                    if (uCurScanNum > 1)
+                    {
+                        Console.WriteLine("  ** Scan complete **");
+                        break;
+                    }
+
+                    bool bWaiting = false;
+                    TryCmd(MIRcatSDK.MIRcatSDK_GetScanWaitingProcessTrigger(ref bWaiting));
+                    Console.WriteLine("MIRcatSDK_GetScanWaitingProcessTrigger( {0} )", bWaiting);
+
+                    if (bWaiting)
+                    {
+                        Console.WriteLine("MIRcatSDK_InjectProcessTrigger()");
+                        TryCmd(MIRcatSDK.MIRcatSDK_InjectProcessTrigger());
+                    }
+
+                    Thread.Sleep(TimeSpan.FromSeconds(1));
+                }
+
+                Console.WriteLine("MIRcatSDK_StopScanInProgress()");
+                var r = MIRcatSDK.MIRcatSDK_StopScanInProgress();
+                Console.WriteLine("   Result = " + r);
 
 
 
 
-                Console.WriteLine("MIRcatSDK_DisarmLaser");
+                Console.WriteLine("MIRcatSDK_DisarmLaser()");
                 TryCmd(MIRcatSDK.MIRcatSDK_DisarmLaser());
             }
             catch (Exception ex)

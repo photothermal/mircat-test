@@ -339,6 +339,92 @@ namespace PSC.MIRcatTest
             }
         }
 
+        /// <summary>
+        /// Read MIRcat error condition, and clear if possible.  Will throw an exception only if the error cannot be cleared.
+        /// </summary>
+        /// <param name="bThrowErrors">Throw an exception if there is an error condition (even if it is clearable).</param>
+        /// <param name="bClearErrors">Attempt to clear errors if present.</param>
+        public void TryErrorCheck(bool bThrowErrors, bool bClearErrors)
+        {
+            bool bSysError = false;
+
+            TryCmd(MIRcatSDK.MIRcatSDK_IsSystemError(ref bSysError));
+
+            Console.WriteLine(string.Format(
+                "MIRcatSDK_IsSystemError( {0} )",
+                bSysError));
+
+            if (bSysError)
+            {
+                MIRcatConstant errCode = 0;
+
+                TryCmd(MIRcatSDK.MIRcatSDK_GetSystemErrorWord(ref errCode));
+
+                Console.WriteLine(string.Format(
+                    "MIRcatSDK_GetSystemErrorWord( {0} )",
+                    errCode));
+
+                Console.WriteLine(string.Format("MIRcat reported error: {0}",
+                    MIRcatSDK.MIRcatSDK_GetErrorDesc(errCode)));
+
+                if (bClearErrors)
+                {
+                    // now try clearing the error...
+                    bool clearOk = false;
+
+                    TryCmd(MIRcatSDK.MIRcatSDK_ClearSystemError(ref clearOk));
+
+                    Console.WriteLine(string.Format(
+                        "MIRcatSDK_ClearSystemError( {0} )",
+                        clearOk));
+
+                    if (!bThrowErrors)  // only warn or report clear failure if we are not throwing the original error
+                    {
+                        if (clearOk)
+                        {
+                            Console.WriteLine(string.Format(
+                                "The MIRcat was indicating a system error.\n\n{0}\n\nWhich has now been cleared.",
+                                MIRcatSDK.MIRcatSDK_GetErrorDesc(errCode)));
+                        }
+                        else
+                        {
+                            throw new Exception(string.Format(
+                                "The MIRcat is indicating a system error.\n\n{0}\n\nPlease use MIRcat control software to clear the error.",
+                                MIRcatSDK.MIRcatSDK_GetErrorDesc(errCode)));
+                        }
+                    }
+
+                    // one more check to make sure the error really did clear
+                    TryCmd(MIRcatSDK.MIRcatSDK_IsSystemError(ref bSysError));
+
+                    Console.WriteLine(string.Format(
+                        "MIRcatSDK_IsSystemError( {0} )",
+                        bSysError));
+                }
+
+                if (bSysError)
+                {
+                    TryCmd(MIRcatSDK.MIRcatSDK_GetSystemErrorWord(ref errCode));
+
+                    Console.WriteLine(string.Format(
+                        "MIRcatSDK_GetSystemErrorWord( {0} )",
+                        errCode));
+
+                    if (bThrowErrors)
+                    {
+                        throw new Exception(
+                            MIRcatSDK.MIRcatSDK_GetErrorDesc(errCode));
+                    }
+                    if (bClearErrors)
+                    {
+                        throw new Exception(string.Format(
+                            "The MIRcat is indicating a persistent system error.\n\n{0}\n\nPlease use MIRcat control software to clear the error.",
+                            MIRcatSDK.MIRcatSDK_GetErrorDesc(errCode)));
+                    }
+                }
+            }
+        }
+
         #endregion
 
         #region Private Methods
@@ -436,95 +522,7 @@ namespace PSC.MIRcatTest
                 throw new Exception("Error waiting for laser temperature to stabilize.", ex);
             }
         }
-
-        /// <summary>
-        /// Read MIRcat error condition, and clear if possible.  Will throw an exception only if the error cannot be cleared.
-        /// </summary>
-        /// <param name="bThrowErrors">Throw an exception if there is an error condition (even if it is clearable).</param>
-        /// <param name="bClearErrors">Attempt to clear errors if present.</param>
-        /// <param name="bWarnErrors">Notify the user (via GUI) if an error condition was present.</param>
-        /// <param name="bWarned">'True' if an error condition was found and cleared, and the user was warned.</param>
-        private void TryErrorCheck(bool bThrowErrors, bool bClearErrors)
-        {
-            bool bSysError = false;
-
-            TryCmd(MIRcatSDK.MIRcatSDK_IsSystemError(ref bSysError));
-
-            Console.WriteLine(string.Format(
-                "MIRcatSDK_IsSystemError( {0} )",
-                bSysError));
-
-            if (bSysError)
-            {
-                MIRcatConstant errCode = 0;
-
-                TryCmd(MIRcatSDK.MIRcatSDK_GetSystemErrorWord(ref errCode));
-
-                Console.WriteLine(string.Format(
-                    "MIRcatSDK_GetSystemErrorWord( {0} )",
-                    errCode));
-
-                Console.WriteLine(string.Format("MIRcat reported error: {0}",
-                    MIRcatSDK.MIRcatSDK_GetErrorDesc(errCode)));
-
-                if (bClearErrors)
-                {
-                    // now try clearing the error...
-                    bool clearOk = false;
-
-                    TryCmd(MIRcatSDK.MIRcatSDK_ClearSystemError(ref clearOk));
-
-                    Console.WriteLine(string.Format(
-                        "MIRcatSDK_ClearSystemError( {0} )",
-                        clearOk));
-
-                    if (!bThrowErrors)  // only warn or report clear failure if we are not throwing the original error
-                    {
-                        if (clearOk)
-                        {
-                            Console.WriteLine(string.Format(
-                                "The MIRcat was indicating a system error.\n\n{0}\n\nWhich has now been cleared.",
-                                MIRcatSDK.MIRcatSDK_GetErrorDesc(errCode)));
-                        }
-                        else
-                        {
-                            throw new Exception(string.Format(
-                                "The MIRcat is indicating a system error.\n\n{0}\n\nPlease use MIRcat control software to clear the error.",
-                                MIRcatSDK.MIRcatSDK_GetErrorDesc(errCode)));
-                        }
-                    }
-
-                    // one more check to make sure the error really did clear
-                    TryCmd(MIRcatSDK.MIRcatSDK_IsSystemError(ref bSysError));
-
-                    Console.WriteLine(string.Format(
-                        "MIRcatSDK_IsSystemError( {0} )",
-                        bSysError));
-                }
-
-                if (bSysError)
-                {
-                    TryCmd(MIRcatSDK.MIRcatSDK_GetSystemErrorWord(ref errCode));
-
-                    Console.WriteLine(string.Format(
-                        "MIRcatSDK_GetSystemErrorWord( {0} )",
-                        errCode));
-
-                    if (bThrowErrors)
-                    {
-                        throw new Exception(
-                            MIRcatSDK.MIRcatSDK_GetErrorDesc(errCode));
-                    }
-                    if (bClearErrors)
-                    {
-                        throw new Exception(string.Format(
-                            "The MIRcat is indicating a persistent system error.\n\n{0}\n\nPlease use MIRcat control software to clear the error.",
-                            MIRcatSDK.MIRcatSDK_GetErrorDesc(errCode)));
-                    }
-                }
-            }
-        }
-
+        
         /// <summary>
         /// Read MIRcat error condition and throw an exception if an error is present.
         /// </summary>
