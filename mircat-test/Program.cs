@@ -1,10 +1,7 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using MIRcat_Control;
+using System;
 using System.Linq;
-using System.Text;
 using System.Threading;
-using System.Threading.Tasks;
-using MIRcat_Control;
 
 namespace PSC.MIRcatTest
 {
@@ -38,16 +35,77 @@ namespace PSC.MIRcatTest
                 Console.WriteLine( "MIRcatSDK_IsConnectedToLaser( {0} )", bConnected);
 
                 var laser = new LaserSupport();
+
+                laser.FetchParameterLimits();
                 laser.QueryLaserStages();
+
 
                 var initialWavenum = laser.QclChips.Values.First().CenterWn;
 
                 // start laser
                 laser.StartLaser(initialWavenum, CancellationToken.None);
 
+                laser.SetPulseWidth(100);
+
+                laser.GetEmitMode();
+                laser.GetEmitMode();
+                laser.GetEmitMode();
+                laser.GetEmitMode();
+
+                laser.SetPulseWidth(500);
+
+                laser.GetEmitMode();
+
+                laser.SetPulseRate(100);
+
+                laser.TryErrorCheck(false, true);
+
+                laser.GetEmitMode();
+                laser.GetEmitMode();
+
+                laser.SetPulseRate(100);
+
+                laser.GetEmitMode();
+
+                laser.SetPulseRate(100);
+
+                laser.GetEmitMode();
+
+                laser.SetPulseWidth(500);
+
+                laser.TryErrorCheck(false, true);                
+
                 bool bIsOn = false;
                 TryCmd(MIRcatSDK.MIRcatSDK_IsEmissionOn(ref bIsOn));
                 Console.WriteLine("MIRcatSDK_IsEmissionOn( {0} )", string.Join(", ", new object[] { bIsOn }));
+
+                TryCmd(MIRcatSDK.MIRcatSDK_IsEmissionOn(ref bIsOn));
+                Console.WriteLine("MIRcatSDK_IsEmissionOn( {0} )", string.Join(", ", new object[] { bIsOn }));
+
+                laser.GetEmitMode();
+
+                laser.SetPulseRate(100);
+
+                laser.GetEmitMode();
+
+                laser.SetPulseWidth(500);
+
+                laser.GetEmitMode();
+                laser.GetEmitMode();
+                laser.GetEmitMode();
+                laser.GetEmitMode();
+
+                laser.SetPulseRate(100);
+
+                laser.GetEmitMode();
+
+                laser.SetPulseWidth(500);
+
+                laser.TryErrorCheck(false, true);
+
+                laser.GetEmitMode();
+
+                laser.SetWavelength(initialWavenum);
 
                 // get the currently defined sweep rate
                 Units units = Units.MIRcatSDK_UNITS_CM1;

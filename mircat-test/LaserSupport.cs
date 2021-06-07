@@ -16,6 +16,22 @@ namespace PSC.MIRcatTest
         public TimeSpan UpdateDelay { get; set; } = TimeSpan.FromSeconds(1);
         public TimeSpan DefaultTimeout { get; set; } = TimeSpan.FromSeconds(40);
 
+        private Range LimitsPulseRateHz { get; set; }
+        private Range LimitsPulseWidthNanoSec { get; set; }
+        private Range LimitsDutyCyclePercent { get; set; }
+
+        #endregion
+
+        #region enums
+
+        public enum EmitMode
+        {
+            InternalPulse,
+            ExternalTrig,
+            ExternalPulse,
+            CW
+        };
+
         #endregion
 
         #region Public Methods
@@ -241,6 +257,49 @@ namespace PSC.MIRcatTest
             }
         }
 
+        public void FetchParameterLimits()
+        {
+            try
+            {
+                float fPulseRateMaxInHz = 0, fPulseWidthMaxInNanoSec = 0, fDutyCycleMax = 0;
+
+                float minHz = float.PositiveInfinity,
+                    minNanoSec = float.PositiveInfinity,
+                    minDutyCycle = float.PositiveInfinity;
+
+                byte numQcls = 0;
+                TryCmd(MIRcatSDK.MIRcatSDK_GetNumInstalledQcls(ref numQcls));
+                Console.WriteLine(
+                    "MIRcatSDK_GetNumInstalledQcls( {0} )",
+                    numQcls);
+
+                // for now... take the value of the worst-performing QCL.
+
+                for (byte qcl = 1; qcl <= numQcls; qcl++)
+                {
+                    TryCmd(MIRcatSDK.MIRcatSDK_GetQCLPulseLimits(qcl, ref fPulseRateMaxInHz, ref fPulseWidthMaxInNanoSec, ref fDutyCycleMax));
+                    Console.WriteLine(
+                        "MIRcatSDK_GetQclPulseLimits( {0}, {1}, {2}, {3} )",
+                        qcl,
+                        fPulseRateMaxInHz,
+                        fPulseWidthMaxInNanoSec,
+                        fDutyCycleMax);
+
+                    minHz = Math.Min(minHz, fPulseRateMaxInHz);
+                    minNanoSec = Math.Min(minNanoSec, fPulseWidthMaxInNanoSec);
+                    minDutyCycle = Math.Min(minDutyCycle, fDutyCycleMax);
+                }
+
+                this.LimitsPulseRateHz = new Range(100, minHz);
+                this.LimitsPulseWidthNanoSec = new Range(0, minNanoSec);
+                this.LimitsDutyCyclePercent = new Range(0.04, minDutyCycle);
+            }
+            catch (Exception ex)
+            {
+                throw new Exception("Error querying parameter limits.", ex);
+            }
+        }
+
         public void QueryLaserStages()
         {
             try
@@ -423,6 +482,254 @@ namespace PSC.MIRcatTest
                     }
                 }
             }
+        }
+
+
+        public EmitMode GetEmitMode()
+        {
+            try
+            {
+
+                lock (this)
+                {
+                    EmitMode emitMode;
+
+                    LaserMode qclEmitMode = 0;
+
+                    TryCmd(MIRcatSDK.MIRcatSDK_GetQCLOperatingMode(1, ref qclEmitMode));
+
+                    Console.WriteLine(
+                        "MIRcatSDK_GetQclOperatingMode( {0}, {1} )",
+                        1,
+                        qclEmitMode);
+
+                    switch (qclEmitMode)
+                    {
+                        case LaserMode.MIRcatSDK_MODE_PULSED:
+                            // Get the parameters we don't want to change
+                            PulseTriggerMode u8PulseMode = 0;
+                            ProcessTriggerMode u8ProcTrigMode = 0;
+                            Units u8Ignored = 0;
+                            float fIgnored1 = 0, fIgnored2 = 0, fIgnored3 = 0;
+                            uint uDwellTime = 0, uAfterOffTime = 0;
+
+                            TryCmd(MIRcatSDK.MIRcatSDK_GetWlTrigParams(
+                                ref u8PulseMode,
+                                ref u8ProcTrigMode,
+                                ref fIgnored1,          // < Ignore these paramters
+                                ref fIgnored2,          // < Ignore these paramters
+                                ref fIgnored3,          // < Ignore these paramters
+                                ref u8Ignored,          // < Ignore these paramters
+                                ref uDwellTime,
+                                ref uAfterOffTime));
+
+                            Console.WriteLine(
+                                "MIRcatSDK_GetWlTrigParams( {0}, {1}, {2}, {3}, {4}, {5}, {6}, {7} )",
+                                u8PulseMode,
+                                u8ProcTrigMode,
+                                fIgnored1,
+                                fIgnored2,
+                                fIgnored3,
+                                u8Ignored,
+                                uDwellTime,
+                                uAfterOffTime);
+
+                            switch (u8PulseMode)
+                            {
+                                case PulseTriggerMode.MIRcatSDK_PULSE_MODE_INTERNAL:
+                                    emitMode = EmitMode.InternalPulse;
+                                    break;
+
+                                case PulseTriggerMode.MIRcatSDK_PULSE_MODE_EXTERNAL_PASSTHRU:
+                                case PulseTriggerMode.MIRcatSDK_PULSE_MODE_WAVELENGTH_TRIGGER:  // <-- WTF is this??
+                                    emitMode = EmitMode.ExternalPulse;
+                                    break;
+
+                                case PulseTriggerMode.MIRcatSDK_PULSE_MODE_EXTERNAL_TRIGGER:
+                                    emitMode = EmitMode.ExternalTrig;
+                                    break;
+
+                                default:
+                                    throw new ArgumentOutOfRangeException("u8PulseMode");
+                            }
+
+                            break;
+
+                        case LaserMode.MIRcatSDK_MODE_CW:
+                        case LaserMode.MIRcatSDK_MODE_CW_MOD:
+                        case LaserMode.MIRcatSDK_MODE_CW_MR:
+                        case LaserMode.MIRcatSDK_MODE_CW_MR_MOD:
+                        case LaserMode.MIRcatSDK_MODE_CW_FLTR1:
+                        case LaserMode.MIRcatSDK_MODE_CW_FLTR2:
+                        case LaserMode.MIRcatSDK_MODE_CW_FLTR1_MOD:
+                            emitMode = EmitMode.CW;
+                            break;
+
+                        case LaserMode.MIRcatSDK_MODE_ERROR:
+                            throw new Exception("QCL emit-mode reports 'error'.");
+
+                        default:
+                            throw new ArgumentOutOfRangeException("qclEmitMode");
+                    }
+
+                    return emitMode;
+                }
+            }
+            catch (Exception ex)
+            {
+                throw new Exception("Failed to read laser emit mode.", ex);
+            }
+        }
+
+        public void SetPulseRate(double rate_kHz)
+        {
+            try
+            {
+                switch (this.GetEmitMode())
+                {
+                    case EmitMode.ExternalPulse:        // Skip setting the pulse rate in this case... there is no benefit for the MIRcat
+                    case EmitMode.ExternalTrig:         // and it is very very slow.
+                        return;
+
+                    default:
+                        break;
+                }
+
+                lock (this)
+                {
+                    float currentInMilliAmps = 0;
+                    float pulseRateInHz = (float)Math.Floor(rate_kHz * 1000.0);  // truncate to lowest Hz
+                    float pulseWidthInNanoSec = 0;
+                    float oldPulseRateInHz = 0;
+
+                    if (pulseRateInHz > this.LimitsPulseRateHz.Max)
+                    {
+                        pulseRateInHz = Convert.ToSingle(this.LimitsPulseRateHz.Max);
+                    }
+                    else if (pulseRateInHz < this.LimitsPulseRateHz.Min)
+                    {
+                        pulseRateInHz = Convert.ToSingle(this.LimitsPulseRateHz.Min);
+                    }
+
+                    // pulse rate must be multiple of 50 MHz
+                    const double master_clock_rate = 5e7;
+
+                    // closest allowed pulse rate is:
+                    double multiple = Math.Floor(master_clock_rate / pulseRateInHz);    // DO NOT ROUND! Just truncate
+
+                    pulseRateInHz = (float)Math.Floor(master_clock_rate / multiple);
+
+                    bool bThrowError = false;
+
+                    byte numQcls = 0;
+                    TryCmd(MIRcatSDK.MIRcatSDK_GetNumInstalledQcls(ref numQcls));
+                    Console.WriteLine(
+                        "MIRcatSDK_GetNumInstalledQcls( {0} )",
+                        numQcls);
+
+                    for (byte qcl = 1; qcl <= numQcls; qcl++)
+                    {
+                        TryCmd(MIRcatSDK.MIRcatSDK_GetQCLCurrent(qcl, ref currentInMilliAmps));
+                        TryCmd(MIRcatSDK.MIRcatSDK_GetQCLPulseWidth(qcl, ref pulseWidthInNanoSec));
+                        TryCmd(MIRcatSDK.MIRcatSDK_GetQCLPulseRate(qcl, ref oldPulseRateInHz));
+
+                        Console.WriteLine("MIRcatSDK_GetQclCurrent( {0}, {1} )", qcl, currentInMilliAmps);
+                        Console.WriteLine("MIRcatSDK_GetQclPulseWidth( {0}, {1} )", qcl, pulseWidthInNanoSec);
+                    Console.WriteLine("MIRcatSDK_GetQclPulseRate( {0}, {1} )", qcl, oldPulseRateInHz);
+
+                        SDKConstant result = MIRcatSDK.MIRcatSDK_SetQCLParams(qcl, pulseRateInHz, pulseWidthInNanoSec, currentInMilliAmps);
+                        if (SDKConstant.MIRcatSDK_RET_PULSERATE_OUTOFRANGE == result)
+                        {
+                            // restore old one...
+                            pulseRateInHz = oldPulseRateInHz;
+                            //PulseRate = oldPulseRateInHz / 1000.0;
+                            TryCmd(MIRcatSDK.MIRcatSDK_SetQCLParams(qcl, pulseRateInHz, pulseWidthInNanoSec, currentInMilliAmps));
+                            Console.WriteLine(
+                                "MIRcatSDK_SetQclParams( {0}, {1}, {2}, {3} )",
+                                qcl,
+                                pulseRateInHz,
+                                pulseWidthInNanoSec,
+                                currentInMilliAmps);
+                        }
+                        else if (SDKConstant.MIRcatSDK_RET_PULSEWIDTH_OUTOFRANGE == result)
+                        {
+                            // this means the laser is in a bad state
+                            // try some known good values and throw an error
+                            TryCmd(MIRcatSDK.MIRcatSDK_GetQCLCurrent(qcl, ref currentInMilliAmps));
+
+                            Console.WriteLine(
+                                "MIRcatSDK_GetQclCurrent( {0}, {1} )",
+                                qcl,
+                                currentInMilliAmps);
+
+                            pulseRateInHz = 100000.0f;
+                            //PulseRate = pulseRateInHz / 1000.0;
+                            //PulseWidth = pulseWidthInNanoSec = 100;
+
+                            // set current qcl
+                            TryCmd(MIRcatSDK.MIRcatSDK_SetQCLParams(qcl, pulseRateInHz, pulseWidthInNanoSec, currentInMilliAmps));
+
+                            Console.WriteLine(
+                                "MIRcatSDK_SetQclParams( {0}, {1}, {2}, {3} )",
+                                qcl,
+                                pulseRateInHz,
+                                pulseWidthInNanoSec,
+                                currentInMilliAmps);
+
+                            qcl = 1;
+                            // set first qcl
+                            TryCmd(MIRcatSDK.MIRcatSDK_GetQCLCurrent(qcl, ref currentInMilliAmps));
+                            TryCmd(MIRcatSDK.MIRcatSDK_SetQCLParams(qcl, pulseRateInHz, pulseWidthInNanoSec, currentInMilliAmps));
+
+                            Console.WriteLine(
+                                "MIRcatSDK_GetQclCurrent( {0}, {1} )",
+                                qcl,
+                                currentInMilliAmps);
+
+                            Console.WriteLine(
+                                "MIRcatSDK_SetQclParams( {0}, {1}, {2}, {3} )",
+                                qcl,
+                                pulseRateInHz,
+                                pulseWidthInNanoSec,
+                                currentInMilliAmps);
+
+                            bThrowError = true;
+
+                            qcl = 0;    // restart
+                            continue;
+                        }
+
+                        float testPulseRateInHz = 0;
+                        TryCmd(MIRcatSDK.MIRcatSDK_GetQCLPulseRate(qcl, ref testPulseRateInHz));
+
+                        Console.WriteLine(
+                            "MIRcatSDK_GetQclPulseRate( {0}, {1} )",
+                            qcl,
+                            testPulseRateInHz);
+
+                        //PulseRate = testPulseRateInHz / 1000.0;
+                    }
+
+                    if (bThrowError)
+                    {
+                        throw new Exception("Bad combination of pulserate and pulsewidth.");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                throw new Exception("Failed to set laser pulse rate.", ex);
+            }
+        }
+
+        public void SetPulseWidth(double width_ns)
+        {
+            throw new NotImplementedException();
+        }
+
+        public void SetWavelength(double wn)
+        {
+            throw new NotImplementedException();
         }
 
         #endregion
