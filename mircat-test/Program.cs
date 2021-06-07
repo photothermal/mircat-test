@@ -127,6 +127,73 @@ namespace PSC.MIRcatTest
 
                 var sweepParams = laser.BuildSweep().ToArray();
 
+                // Get the parameters we don't want to change
+                PulseTriggerMode u8PulseMode = 0;
+                ProcessTriggerMode u8ProcTrigMode = 0;
+                Units u8Ignored = 0;
+                float fIgnored1 = 0, fIgnored2 = 0, fIgnored3 = 0;
+                uint uDwellTime = 0, uAfterOffTime = 0;
+                Units u8Units = Units.MIRcatSDK_UNITS_CM1;
+
+                TryCmd(MIRcatSDK.MIRcatSDK_GetWlTrigParams(
+                    ref u8PulseMode,
+                    ref u8ProcTrigMode,
+                    ref fIgnored1,          // < Ignore these paramters
+                    ref fIgnored2,          // < Ignore these paramters
+                    ref fIgnored3,          // < Ignore these paramters
+                    ref u8Ignored,          // < Ignore these paramters
+                    ref uDwellTime,
+                    ref uAfterOffTime));
+                Console.WriteLine(
+                    "MIRcatSDK_GetWlTrigParams( {0} )", string.Join(", ", new object[] {
+                    u8PulseMode,
+                    u8ProcTrigMode,
+                    fIgnored1,
+                    fIgnored2,
+                    fIgnored3,
+                    u8Ignored,
+                    uDwellTime,
+                    uAfterOffTime }));
+
+
+                // Note: New behavior as of 4/6/2017
+                //       'stageReadyCallback' may be null.  
+                //       If 'stageReadyCallback' is null, we are specifying an immediately executed sweep using internal process triggers.
+                //       If 'stageReadyCallback' is provided, we will use manual process triggers, and inject a process trigger for each
+                //       successful invocation of 'stageReadyCallback'.
+
+                //if (null == stageReadyCallback)
+                //{
+                //    u8ProcTrigMode = ProcessTriggerMode.MIRcatSDK_PROC_TRIG_MODE_INTERNAL;  // Fastest full-range sweep possible.
+                //}
+                //else
+                {
+                    u8ProcTrigMode = ProcessTriggerMode.MIRcatSDK_PROC_TRIG_MODE_MANUAL;   // set the MIRcat to use the manual process triggers
+                }
+
+
+                // Now change the parameters
+                Console.WriteLine(
+                    "MIRcatSDK_SetWlTrigParams( {0} )", string.Join(", ", new object[] {
+                    u8PulseMode,
+                    u8ProcTrigMode,
+                    sweepParams.MinWn(),
+                    sweepParams.MaxWn(),
+                    0.5f,
+                    u8Units,
+                    uDwellTime,
+                    uAfterOffTime }));
+
+                TryCmd(MIRcatSDK.MIRcatSDK_SetWlTrigParams(
+                    u8PulseMode,
+                    u8ProcTrigMode,
+                    sweepParams.MinWn(),
+                    sweepParams.MaxWn(),
+                    0.5f,
+                    u8Units,
+                    uDwellTime,
+                    uAfterOffTime));
+
                 TryCmd(MIRcatSDK.MIRcatSDK_SetAdvancedSweepParams(Units.MIRcatSDK_UNITS_CM1, sweepParams.MinWn(), sweepParams.MaxWn(), targetRate, 1, false));
                 Console.WriteLine("MIRcatSDK_SetAdvancedSweepParams( {0} )", string.Join(", ",
                     new object[] { Units.MIRcatSDK_UNITS_CM1, sweepParams.MinWn(), sweepParams.MaxWn(), targetRate, 1, false }));
