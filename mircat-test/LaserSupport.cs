@@ -724,12 +724,164 @@ namespace PSC.MIRcatTest
 
         public void SetPulseWidth(double width_ns)
         {
-            throw new NotImplementedException();
+            try
+            {
+                if (0 >= width_ns)
+                {
+                    throw new ArgumentOutOfRangeException("PulseWidth", width_ns, string.Format("IR laser pulse width may not be set to {0} ns.", width_ns));
+                }
+
+                switch (this.GetEmitMode())
+                {
+                    case EmitMode.ExternalPulse:                    // Skip setting the pulse width in this case... there is no benefit for the MIRcat
+                        //this.PulseWidth = width_ns;                 // and it is very very slow.
+                        //LogLine("--SetPulseWidth::SKIPPED::ok--");
+                        return;
+
+                    default:
+                        break;
+                }
+
+                lock (this)
+                {
+                    float currentInMilliAmps = 0;
+                    float pulseRateInHz = 0;
+                    float pulseWidthInNanoSec = (float)width_ns;
+                    float oldPulseWidthInNanoSec = 0;
+
+                    if (pulseWidthInNanoSec > this.LimitsPulseWidthNanoSec.Max)
+                    {
+                        pulseWidthInNanoSec = Convert.ToSingle(this.LimitsPulseWidthNanoSec.Max);
+                    }
+                    else if (pulseWidthInNanoSec < this.LimitsPulseWidthNanoSec.Min)
+                    {
+                        pulseWidthInNanoSec = Convert.ToSingle(this.LimitsPulseWidthNanoSec.Min);
+                    }
+
+                    // pulse width must be multiple of 50 MHz clock cycle
+                    const double master_tick_ns = 20;
+                    double multiple = Math.Floor(pulseWidthInNanoSec / master_tick_ns);    // DO NOT ROUND! Just truncate
+                    pulseWidthInNanoSec = (float)Math.Floor(master_tick_ns * multiple);
+
+                    bool bThrowError = false;
+
+                    //var pwScalars = this.GetPulseWidthScalars();
+                    var pwScalars = this.QclChips.Keys.ToDictionary(item => Convert.ToByte(item), item => 1f);
+                    Console.WriteLine("Pulse Width Scalars: " + string.Join(", ", pwScalars.Select(kvp => string.Format("[{0}, {1}]", kvp.Key, kvp.Value))));
+
+                restart:
+                    //for (byte qcl = 1; qcl <= numQcls; qcl++)
+                    foreach (var qcl in pwScalars.Keys)
+                    {
+                        var pwScalar = pwScalars[qcl];
+
+                        TryCmd(MIRcatSDK.MIRcatSDK_GetQCLCurrent(qcl, ref currentInMilliAmps));
+                        TryCmd(MIRcatSDK.MIRcatSDK_GetQCLPulseRate(qcl, ref pulseRateInHz));
+                        TryCmd(MIRcatSDK.MIRcatSDK_GetQCLPulseWidth(qcl, ref oldPulseWidthInNanoSec));
+
+                        Console.WriteLine("MIRcatSDK_GetQclCurrent( {0}, {1} )", qcl, currentInMilliAmps);
+                        Console.WriteLine("MIRcatSDK_GetQclPulseRate( {0}, {1} )", qcl, pulseRateInHz);
+                        Console.WriteLine("MIRcatSDK_GetQclPulseWidth( {0}, {1} )", qcl, oldPulseWidthInNanoSec);
+
+                        SDKConstant result = MIRcatSDK.MIRcatSDK_SetQCLParams(qcl, pulseRateInHz, pwScalar * pulseWidthInNanoSec, currentInMilliAmps);
+                        Console.WriteLine("MIRcatSDK_SetQCLParams( {0}, {1}, {2} * {3}, {4} ) returned: {5}",
+                            qcl, pulseRateInHz, pwScalar, pulseWidthInNanoSec, currentInMilliAmps, result);
+
+                        // cache the value if we were successful
+                        if (!MIRcatSDK.MIRcatSDK_Failed(result))
+                        {
+                            //this.PulseWidth = pulseWidthInNanoSec;
+                        }
+
+                        if (SDKConstant.MIRcatSDK_RET_PULSEWIDTH_OUTOFRANGE == result)
+                        {
+                            Console.WriteLine(" ** Pulse width out of range.  Restoring previous values. ** ");
+
+                            // restore old one...
+                            Console.WriteLine(
+                                "MIRcatSDK_SetQclParams( {0}, {1}, {2}, {3} )",
+                                qcl,
+                                pulseRateInHz,
+                                oldPulseWidthInNanoSec,
+                                currentInMilliAmps);
+                            TryCmd(MIRcatSDK.MIRcatSDK_SetQCLParams(qcl, pulseRateInHz, oldPulseWidthInNanoSec, currentInMilliAmps));
+                            //this.PulseWidth = pulseWidthInNanoSec = oldPulseWidthInNanoSec;
+
+                        }
+                        else if (SDKConstant.MIRcatSDK_RET_PULSERATE_OUTOFRANGE == result)
+                        {
+                            // this means the laser is in a bad state
+                            // try some known good values and throw an error
+
+                            Console.WriteLine(" ** Pulse rate out of range.  Setting known good values. ** ");
+
+                            TryCmd(MIRcatSDK.MIRcatSDK_GetQCLCurrent(qcl, ref currentInMilliAmps));
+
+                            Console.WriteLine(
+                                "MIRcatSDK_GetQclCurrent( {0}, {1} )",
+                                qcl,
+                                currentInMilliAmps);
+
+                            pulseRateInHz = 100000.0f;
+                            //this.PulseRate = pulseRateInHz / 1000.0;
+                            //this.PulseWidth = pulseWidthInNanoSec = 100;
+
+                            // set current qcl
+                            TryCmd(MIRcatSDK.MIRcatSDK_SetQCLParams(qcl, pulseRateInHz, pwScalar * pulseWidthInNanoSec, currentInMilliAmps));
+
+                            Console.WriteLine(
+                                "MIRcatSDK_SetQclParams( {0}, {1}, {2} * {3}, {4} )",
+                                qcl,
+                                pulseRateInHz,
+                                pwScalar, pulseWidthInNanoSec,
+                                currentInMilliAmps);
+
+                            TryCmd(MIRcatSDK.MIRcatSDK_GetQCLCurrent(qcl, ref currentInMilliAmps));
+                            TryCmd(MIRcatSDK.MIRcatSDK_SetQCLParams(qcl, pulseRateInHz, pulseWidthInNanoSec, currentInMilliAmps));
+
+                            Console.WriteLine(
+                                "MIRcatSDK_GetQclCurrent( {0}, {1} )",
+                                qcl,
+                                currentInMilliAmps);
+
+                            Console.WriteLine(
+                                "MIRcatSDK_SetQclParams( {0}, {1} )",
+                                qcl,
+                                pulseRateInHz,
+                                pulseWidthInNanoSec,
+                                currentInMilliAmps);
+
+                            if (bThrowError)
+                            {
+                                throw new Exception("Bad combination of pulserate and pulsewidth.");
+                            }
+
+                            bThrowError = true;
+
+                            goto restart;    // restart
+                        }
+
+                        float testPulseWidthNanoSec = 0;
+                        TryCmd(MIRcatSDK.MIRcatSDK_GetQCLPulseWidth(qcl, ref testPulseWidthNanoSec));
+
+                        Console.WriteLine(
+                            "MIRcatSDK_GetQclPulseWidth( {0}, {1} )",
+                            qcl,
+                            testPulseWidthNanoSec);
+
+                        //this.PulseWidth = testPulseWidthNanoSec / pwScalar;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                throw new Exception("Failed to set laser pulse width.", ex);
+            }
         }
 
         public void SetWavelength(double wn)
         {
-            throw new NotImplementedException();
+            this.EnsureArmed(wn, false, CancellationToken.None);
         }
 
         #endregion
